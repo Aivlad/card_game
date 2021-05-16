@@ -46,6 +46,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AI\AI.cs" />
+    <Compile Include="AI\Lori.cs" />
     <Compile Include="Deck\Deck.cs" />
     <Compile Include="Deck\PlayingCard.cs" />
     <Compile Include="Server\Sever.cs" />
@@ -82,8 +84,6 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="AI\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
