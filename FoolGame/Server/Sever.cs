@@ -9,20 +9,23 @@ namespace FoolGame.Server
     class Sever
     {
         // данные (карты), хранимые сервером
-        readonly DeckCards Deck;
-        readonly List<PlayingCard> HandPlayer1 = new List<PlayingCard>();
-        readonly List<PlayingCard> HandPlayer2 = new List<PlayingCard>();
-        readonly List<PlayingCard> Table = new List<PlayingCard>();
-        readonly List<PlayingCard> PickDown = new List<PlayingCard>();
+        readonly DeckCards DeckBox;
+        readonly List<PlayingCard> HandPlayer1Box = new List<PlayingCard>();
+        readonly List<PlayingCard> HandPlayer2Box = new List<PlayingCard>();
+        readonly List<PlayingCard> TableBox = new List<PlayingCard>();
+        readonly List<PlayingCard> DiscardBox = new List<PlayingCard>();
 
         // методы с оболочки
-        public Action<string> PrintLogs;
-        public Action<RichTextBox, List<PlayingCard>> PrintCardsInTextBox;
+        Action<string> PrintLogs;
+        Action<RichTextBox, List<PlayingCard>> PrintCardsInTextBox;
         readonly List<RichTextBox> AllBoxes;
 
         // активынй игрок
         int ActivePlayer;
 
+        /// <param name="printLogs">Делегат вывода данных в окно логов</param>
+        /// <param name="printCardsInTextBox">Делегат вывода в указанный RichTextBox список карт</param>
+        /// <param name="obj">Доступные RichTextBox окна</param>
         public Sever(Action<string> printLogs, Action<RichTextBox, List<PlayingCard>> printCardsInTextBox, List<RichTextBox> obj)
         {
             // методы взаимодействия с формой
@@ -32,14 +35,14 @@ namespace FoolGame.Server
             PrintLogs("Сервер инициализирован");
 
             // работа с колодой
-            Deck = new DeckCards(); // сама колода
-            PrintCardsInTextBox(AllBoxes[0], new List<PlayingCard> { Deck.ViewTrump() });   // показать козырь
+            DeckBox = new DeckCards(); // сама колода
+            PrintCardsInTextBox(AllBoxes[0], new List<PlayingCard> { DeckBox.ViewTrump() });   // показать козырь
 
             // выдача карт на руки
             for (var i = 0; i < 6; i++) 
             {
-                HandPlayer1.Add(Deck.TakeCard());
-                HandPlayer2.Add(Deck.TakeCard());
+                HandPlayer1Box.Add(DeckBox.TakeCard());
+                HandPlayer2Box.Add(DeckBox.TakeCard());
             }
             ViewState();
             PrintLogs("Карты розданы");
@@ -50,15 +53,187 @@ namespace FoolGame.Server
         }
 
         /// <summary>
+        /// Вызов действия
+        /// </summary>
+        /// <param name="indexString">Входной индекс (определяет в активной руке номер карты, которой нужно походить; если -1, то вызов альтернативных действий)</param>
+        public void MakeMove(string indexString)
+        {
+            int index;
+            try
+            {
+                index = int.Parse(indexString);
+            }
+            catch
+            {
+                PrintLogs("Ошибка: проверте корректность индекса");
+                return;
+            }
+
+            if ((HandPlayer1Box.Count == 0 || HandPlayer2Box.Count == 0) && DeckBox.Count() == 0)
+            {
+                PrintLogs("Игра окончена");
+                return;
+            }
+
+            bool answer = false;
+            if (ActivePlayer == 1)
+            {
+                answer = StrokeProcess(HandPlayer1Box, index);
+            }
+            else if (ActivePlayer == 2)
+            {
+                answer = StrokeProcess(HandPlayer2Box, index);
+            }
+            else
+            {
+                PrintLogs($"Выскочил ActivePlayer = {ActivePlayer}");
+            }
+
+            if (answer)
+                ChangeActivePlayer();
+        }
+
+        /// <summary>
+        /// Процесс хода (вычисление необходимого действия)
+        /// </summary>
+        /// <param name="hand">Активная рука</param>
+        /// <param name="index">Индекс активной карты в руке</param>
+        /// <returns></returns>
+        bool StrokeProcess(List<PlayingCard> hand, int index)
+        {
+            if (TableBox.Count == 0) // первая карта
+            {
+                return Moving(hand, TableBox, index);
+            }
+            else
+            {
+                if (TableBox.Count % 2 == 0) // подкинуть
+                {
+                    if (index == -1)    // пас
+                    {
+                        return Discard();
+                    }
+                    else // подкинуть
+                    {
+                        return Moving(hand, TableBox, index);
+                    }
+                }
+                else // биться
+                {
+                    if (index == -1)    // забрать
+                    {
+                        return MovingToHand(hand);
+                    }
+                    else // отбиться
+                    {
+                        return Moving(hand, TableBox, index);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Перенести карты со стола в руку
+        /// </summary>
+        /// <param name="hand">Активня рука</param>
+        /// <returns></returns>
+        bool MovingToHand(List<PlayingCard> hand)
+        {
+            hand.AddRange(TableBox);
+            TableBox.Clear();
+
+            // дураная проверка т.к. здесь нужно знать просто кому карты докинуть из колоды
+            if (ActivePlayer == 1)
+                DealCards(HandPlayer1Box, HandPlayer2Box);
+            else
+                DealCards(HandPlayer2Box, HandPlayer1Box);
+            return true;
+        }
+
+        /// <summary>
+        /// Сброс карт в отбой
+        /// </summary>
+        /// <returns></returns>
+        bool Discard()
+        {
+            DiscardBox.AddRange(TableBox);
+            TableBox.Clear();
+
+            if (ActivePlayer == 1)
+                DealCards(HandPlayer1Box, HandPlayer2Box);
+            else
+                DealCards(HandPlayer2Box, HandPlayer1Box);
+            return true;
+        }
+
+        /// <summary>
+        /// Заполнить карты руками (первая рука заполняется до конца, потом заполняется вторая; очереднеть: кто первый ходил, тот берет первый)
+        /// </summary>
+        /// <param name="hand1">Рука игрока, который сейчас первый ходит</param>
+        /// <param name="hand2">Рука игрока, который сейчас ходит вторым</param>
+        void DealCards(List<PlayingCard> hand1, List<PlayingCard> hand2)
+        {
+            while (hand1.Count < 6)
+            {
+                var card = DeckBox.TakeCard();
+                if (card == null)
+                {
+                    PrintLogs("Карты закончились в колоде");
+                    return;
+                }
+                hand1.Add(card);
+            }
+            while (hand2.Count < 6)
+            {
+                var card = DeckBox.TakeCard();
+                if (card == null)
+                {
+                    PrintLogs("Карты закончились в колоде");
+                    return;
+                }
+                hand2.Add(card);
+            }
+        }
+
+        /// <summary>
+        /// Перенести карту из одного списка в другой
+        /// </summary>
+        /// <param name="fromList">Список источник</param>
+        /// <param name="toList">Список получатель</param>
+        /// <param name="index">Индекс переходной карты</param>
+        /// <returns></returns>
+        bool Moving(List<PlayingCard> fromList, List<PlayingCard> toList, int index)
+        {
+            if (index < 0 || index >= fromList.Count)
+            {
+                PrintLogs("Выход за границы диапазона списка");
+                return false;
+            }
+            toList.Add(fromList[index]);
+            fromList.RemoveAt(index);
+            return true;
+        }
+
+        /// <summary>
+        /// Поменять активного игрока
+        /// </summary>
+        void ChangeActivePlayer()
+        {
+            ActivePlayer = ActivePlayer == 1 ? 2 : 1;
+            ViewState();
+            PrintLogs("Сейчас ActivePlayer " + ActivePlayer);
+        }
+
+        /// <summary>
         /// Вывести все списки на форму
         /// </summary>
         void ViewState()
         {
-            PrintCardsInTextBox(AllBoxes[1], HandPlayer1);
-            PrintCardsInTextBox(AllBoxes[2], HandPlayer2);
-            PrintCardsInTextBox(AllBoxes[5], Table);
-            PrintCardsInTextBox(AllBoxes[3], Deck.GetDeck());
-            PrintCardsInTextBox(AllBoxes[4], PickDown);
+            PrintCardsInTextBox(AllBoxes[1], HandPlayer1Box);
+            PrintCardsInTextBox(AllBoxes[2], HandPlayer2Box);
+            PrintCardsInTextBox(AllBoxes[5], TableBox);
+            PrintCardsInTextBox(AllBoxes[3], DeckBox.GetDeck());
+            PrintCardsInTextBox(AllBoxes[4], DiscardBox);
         }
 
         /// <summary>
@@ -67,10 +242,10 @@ namespace FoolGame.Server
         void InitActivePlayer()
         {
             // козырь
-            var trump = Deck.ViewTrump();
+            var trump = DeckBox.ViewTrump();
             // выборка козырей
-            var hand1 = HandPlayer1.Where(item => item.suit == trump.suit);
-            var hand2 = HandPlayer2.Where(item => item.suit == trump.suit);
+            var hand1 = HandPlayer1Box.Where(item => item.suit == trump.suit);
+            var hand2 = HandPlayer2Box.Where(item => item.suit == trump.suit);
 
             // проверка условий:
             if (hand1.Any() && hand2.Any()) // козыри есть у обоих
@@ -91,9 +266,9 @@ namespace FoolGame.Server
             else // козыри отсутствуют на руках
             {
                 // проверка наибольшей карты
-                if (HandPlayer1.Max(item => item.weight) > HandPlayer2.Max(item => item.weight))
+                if (HandPlayer1Box.Max(item => item.weight) > HandPlayer2Box.Max(item => item.weight))
                     ActivePlayer = 1;
-                else if (HandPlayer1.Max(item => item.weight) > HandPlayer2.Max(item => item.weight))
+                else if (HandPlayer1Box.Max(item => item.weight) > HandPlayer2Box.Max(item => item.weight))
                     ActivePlayer = 2;
                 else // ветка случайного числа
                 {

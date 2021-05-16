@@ -37,6 +37,7 @@ namespace FoolGame
                     }
                 );
 
+            StrokeIndex.Text = "0";
 
         }
 
@@ -105,6 +106,16 @@ namespace FoolGame
             Hint.SetToolTip(StrokeIndex, "Поле: указать индекс карты для хода");
 
             Hint.SetToolTip(button1, "Сделать ход");
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            Server.MakeMove(StrokeIndex.Text.ToString());
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            Server.MakeMove("-1");
         }
     }
 }
