@@ -1,4 +1,5 @@
-﻿using FoolGame.Deck;
+﻿using FoolGame.AI;
+using FoolGame.Deck;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +9,14 @@ namespace FoolGame.Server
 {
     class Sever
     {
+        enum UserAction
+        {
+            None,
+            FirstMove,
+            Protection,
+            Attack
+        }
+
         // данные (карты), хранимые сервером
         readonly DeckCards DeckBox;
         readonly List<PlayingCard> HandPlayer1Box = new List<PlayingCard>();
@@ -22,6 +31,9 @@ namespace FoolGame.Server
 
         // активынй игрок
         int ActivePlayer;
+
+        // AI 
+        Lori Player1;
 
         /// <param name="printLogs">Делегат вывода данных в окно логов</param>
         /// <param name="printCardsInTextBox">Делегат вывода в указанный RichTextBox список карт</param>
@@ -50,24 +62,108 @@ namespace FoolGame.Server
             // определение активного игрока
             InitActivePlayer();
             PrintLogs("Сейчас ходит игрок " + ActivePlayer);
+
+            // создание сервера
+            Player1 = new Lori(DeckBox.ViewTrump());
         }
 
         /// <summary>
-        /// Вызов действия
+        /// Вызов действия (AI (Player 1) vs человек (Player 2))
+        /// </summary>
+        /// <param name="indexString">Входной индекс (определяет в активной руке номер карты, которой нужно походить; если -1, то вызов альтернативных действий)</param>
+        public void MakeMove(string indexString, bool mock)
+        {
+            if ((HandPlayer1Box.Count == 0 || HandPlayer2Box.Count == 0) && DeckBox.Count() == 0)
+            {
+                PrintLogs("Игра окончена");
+                return;
+            }
+
+            bool answer = false;
+            if (ActivePlayer == 1)
+            {
+                // определение того, что нужно ожидать от ИИ
+                var currentUserAction = UserAction.None;
+                if (TableBox.Count == 0)
+                    currentUserAction = UserAction.FirstMove;
+                else if (TableBox.Count % 2 == 0)
+                    currentUserAction = UserAction.Attack;
+                else
+                    currentUserAction = UserAction.Protection;
+
+                // через количества определим потом какие изменения были
+                var countHandPlayerBoxOld = HandPlayer1Box.Count;
+                var countTableBoxOld = TableBox.Count;
+
+
+                // запрос хода у ИИ
+                PrintLogs($"{Player1} зпрос хода");
+                var solution = Player1.MakeMove(HandPlayer1Box, TableBox, DeckBox.Count());
+
+                // проверка что изменилось:
+                // UserAction.FirstMove не требует доп. проверки
+                // UserAction.Attack требует доп. проверки: подкинули или пасанули
+                // UserAction.Protection требует доп. проверки: забрали или отбились
+                var countHandPlayerBoxNew = HandPlayer1Box.Count;
+                var countTableBoxNew = TableBox.Count;
+                if (currentUserAction == UserAction.FirstMove)
+                {
+                    PrintLogs($"{Player1} провел UserAction.FirstMove");
+                }
+                else if (currentUserAction == UserAction.Attack)
+                {
+                    if (countHandPlayerBoxNew == countHandPlayerBoxOld && countTableBoxNew == countTableBoxOld)
+                    {
+                        // нужно "сделать" пас:
+                        // - скинуть карты со стола
+                        // - закинуть карты в руки игрокам (если есть)
+                        Discard();
+                        PrintLogs($"{Player1} провел UserAction.Attack: Пас");
+                    }
+                    else
+                    {
+                        PrintLogs($"{Player1} провел UserAction.Attack: Подкинуть");
+                    }
+                }
+                else if (currentUserAction == UserAction.Protection)
+                {
+                    if (countTableBoxNew == 0 && countTableBoxOld + countHandPlayerBoxOld == countHandPlayerBoxNew)
+                    {
+                        PrintLogs($"{Player1} провел UserAction.Protection: Забрать карты со стола");
+                    }
+                    else
+                    {
+                        PrintLogs($"{Player1} провел UserAction.Attack: Отбиться");
+                    }
+                }
+                else
+                {
+                    throw new Exception("Такое состояние не должно определяться, что-то пошло не так");
+                }
+                answer = true;
+            }
+            else if (ActivePlayer == 2)
+            {
+                int index = ConvertIndex(indexString);
+                answer = StrokeProcess(HandPlayer2Box, index);
+            }
+            else
+            {
+                PrintLogs($"Выскочил ActivePlayer = {ActivePlayer}");
+            }
+
+            if (answer)
+                ChangeActivePlayer();
+        }
+
+
+        /// <summary>
+        /// Вызов действия (человек (Player 1) vs человек (Player 2))
         /// </summary>
         /// <param name="indexString">Входной индекс (определяет в активной руке номер карты, которой нужно походить; если -1, то вызов альтернативных действий)</param>
         public void MakeMove(string indexString)
         {
-            int index;
-            try
-            {
-                index = int.Parse(indexString);
-            }
-            catch
-            {
-                PrintLogs("Ошибка: проверте корректность индекса");
-                return;
-            }
+            int index = ConvertIndex(indexString);
 
             if ((HandPlayer1Box.Count == 0 || HandPlayer2Box.Count == 0) && DeckBox.Count() == 0)
             {
@@ -91,6 +187,18 @@ namespace FoolGame.Server
 
             if (answer)
                 ChangeActivePlayer();
+        }
+
+        int ConvertIndex(string indexString)
+        {
+            try
+            {
+                return int.Parse(indexString);
+            }
+            catch
+            {
+                throw new Exception("Некорректное представление индекса (вы указали не число)");
+            }
         }
 
         /// <summary>

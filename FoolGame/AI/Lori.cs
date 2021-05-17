@@ -18,15 +18,18 @@ namespace FoolGame.AI
      */
     class Lori : AI
     {
+        private readonly string NameAI;
+
         /// <summary>
         /// Козырь в текущей игре
         /// </summary>
-        PlayingCard CurrentTrump;
+        readonly PlayingCard CurrentTrump;
 
         /// <param name="trump">Козырь в текущей игре</param>
-        public Lori(PlayingCard trump)
+        public Lori(PlayingCard trump, string name = "Lori")
         {
             CurrentTrump = trump;
+            NameAI = name;
         }
 
         public override (List<PlayingCard> hand, List<PlayingCard> table) MakeMove(List<PlayingCard> hand, List<PlayingCard> table, int countDroping)
@@ -129,6 +132,11 @@ namespace FoolGame.AI
             }
 
             //throw new NotImplementedException();
+        }
+
+        public override string ToString()
+        {
+            return $"{NameAI}";
         }
     }
 }
