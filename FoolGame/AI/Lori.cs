@@ -126,7 +126,7 @@ namespace FoolGame.AI
                     }
 
                     // если добрались сюда, то должны забрать карты со стола
-                    Moving(hand, table);
+                    Moving(table, hand);
                     return (hand, table);
                 }
             }

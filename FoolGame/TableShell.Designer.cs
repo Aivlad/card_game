@@ -41,6 +41,7 @@ namespace FoolGame
             this.Hint = new System.Windows.Forms.ToolTip(this.components);
             this.Trump = new System.Windows.Forms.RichTextBox();
             this.button2 = new System.Windows.Forms.Button();
+            this.button3 = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // User1
@@ -69,7 +70,7 @@ namespace FoolGame
             // 
             // Deck
             // 
-            this.Deck.Location = new System.Drawing.Point(696, 12);
+            this.Deck.Location = new System.Drawing.Point(709, 12);
             this.Deck.Name = "Deck";
             this.Deck.Size = new System.Drawing.Size(405, 531);
             this.Deck.TabIndex = 4;
@@ -77,7 +78,7 @@ namespace FoolGame
             // 
             // Droping
             // 
-            this.Droping.Location = new System.Drawing.Point(1107, 12);
+            this.Droping.Location = new System.Drawing.Point(1120, 12);
             this.Droping.Name = "Droping";
             this.Droping.Size = new System.Drawing.Size(405, 561);
             this.Droping.TabIndex = 5;
@@ -85,7 +86,7 @@ namespace FoolGame
             // 
             // Logs
             // 
-            this.Logs.Location = new System.Drawing.Point(696, 579);
+            this.Logs.Location = new System.Drawing.Point(709, 579);
             this.Logs.Name = "Logs";
             this.Logs.Size = new System.Drawing.Size(816, 250);
             this.Logs.TabIndex = 6;
@@ -95,14 +96,14 @@ namespace FoolGame
             // 
             this.StrokeIndex.Location = new System.Drawing.Point(624, 268);
             this.StrokeIndex.Name = "StrokeIndex";
-            this.StrokeIndex.Size = new System.Drawing.Size(66, 20);
+            this.StrokeIndex.Size = new System.Drawing.Size(79, 20);
             this.StrokeIndex.TabIndex = 7;
             // 
             // button1
             // 
             this.button1.Location = new System.Drawing.Point(624, 294);
             this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(66, 23);
+            this.button1.Size = new System.Drawing.Size(79, 23);
             this.button1.TabIndex = 8;
             this.button1.Text = "Ход";
             this.button1.UseVisualStyleBackColor = true;
@@ -110,7 +111,7 @@ namespace FoolGame
             // 
             // Trump
             // 
-            this.Trump.Location = new System.Drawing.Point(696, 545);
+            this.Trump.Location = new System.Drawing.Point(709, 545);
             this.Trump.Name = "Trump";
             this.Trump.Size = new System.Drawing.Size(405, 28);
             this.Trump.TabIndex = 9;
@@ -120,11 +121,21 @@ namespace FoolGame
             // 
             this.button2.Location = new System.Drawing.Point(624, 323);
             this.button2.Name = "button2";
-            this.button2.Size = new System.Drawing.Size(66, 40);
+            this.button2.Size = new System.Drawing.Size(79, 40);
             this.button2.TabIndex = 10;
             this.button2.Text = "Забрать/пас";
             this.button2.UseVisualStyleBackColor = true;
             this.button2.Click += new System.EventHandler(this.button2_Click);
+            // 
+            // button3
+            // 
+            this.button3.Location = new System.Drawing.Point(624, 466);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(79, 40);
+            this.button3.TabIndex = 11;
+            this.button3.Text = "Тест: сброс до 4";
+            this.button3.UseVisualStyleBackColor = true;
+            this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
             // TableShell
             // 
@@ -132,6 +143,7 @@ namespace FoolGame
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Info;
             this.ClientSize = new System.Drawing.Size(1537, 841);
+            this.Controls.Add(this.button3);
             this.Controls.Add(this.button2);
             this.Controls.Add(this.Trump);
             this.Controls.Add(this.button1);
@@ -162,6 +174,7 @@ namespace FoolGame
         private System.Windows.Forms.ToolTip Hint;
         private System.Windows.Forms.RichTextBox Trump;
         private System.Windows.Forms.Button button2;
+        private System.Windows.Forms.Button button3;
     }
 }
 

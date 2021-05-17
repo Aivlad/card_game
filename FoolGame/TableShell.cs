@@ -110,12 +110,17 @@ namespace FoolGame
 
         private void button1_Click(object sender, EventArgs e)
         {
-            Server.MakeMove(StrokeIndex.Text.ToString(), false);
+            Server.MakeMove(StrokeIndex.Text.ToString());
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
             Server.MakeMove("-1");
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            Server.DiscardingCardsFromDeck(20);
         }
     }
 }

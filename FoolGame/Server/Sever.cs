@@ -9,7 +9,20 @@ namespace FoolGame.Server
 {
     class Sever
     {
-        enum UserAction
+        /// <summary>
+        /// Режим игры
+        /// </summary>
+        enum GameMode
+        {
+            HumanVsHuman,
+            HumanVsAi,
+            AiVsAi
+        }
+
+        /// <summary>
+        /// Действия, совершаемые ИИ
+        /// </summary>
+        enum ActionAI
         {
             None,
             FirstMove,
@@ -25,26 +38,37 @@ namespace FoolGame.Server
         readonly List<PlayingCard> DiscardBox = new List<PlayingCard>();
 
         // методы с оболочки
-        Action<string> PrintLogs;
-        Action<RichTextBox, List<PlayingCard>> PrintCardsInTextBox;
+        readonly Action<string> PrintLogs;
+        readonly Action<RichTextBox, List<PlayingCard>> PrintCardsInTextBox;
         readonly List<RichTextBox> AllBoxes;
 
         // активынй игрок
         int ActivePlayer;
 
         // AI 
-        Lori Player1;
+        readonly Lori Player1;
+        readonly Lori Player2;
+
+        // game mode
+        readonly GameMode Mode;
 
         /// <param name="printLogs">Делегат вывода данных в окно логов</param>
         /// <param name="printCardsInTextBox">Делегат вывода в указанный RichTextBox список карт</param>
         /// <param name="obj">Доступные RichTextBox окна</param>
-        public Sever(Action<string> printLogs, Action<RichTextBox, List<PlayingCard>> printCardsInTextBox, List<RichTextBox> obj)
+        public Sever(
+            Action<string> printLogs, 
+            Action<RichTextBox, List<PlayingCard>> printCardsInTextBox, 
+            List<RichTextBox> obj
+            )
         {
             // методы взаимодействия с формой
             PrintLogs = printLogs;
             PrintCardsInTextBox = printCardsInTextBox;
             AllBoxes = obj;
             PrintLogs("Сервер инициализирован");
+
+            Mode = GameMode.AiVsAi;
+            PrintLogs($"Текущий режим: {Mode}");
 
             // работа с колодой
             DeckBox = new DeckCards(); // сама колода
@@ -64,82 +88,95 @@ namespace FoolGame.Server
             PrintLogs("Сейчас ходит игрок " + ActivePlayer);
 
             // создание сервера
-            Player1 = new Lori(DeckBox.ViewTrump());
+            Player1 = new Lori(DeckBox.ViewTrump(), "Lori One");
+            Player2 = new Lori(DeckBox.ViewTrump(), "Lori Two");
         }
 
         /// <summary>
-        /// Вызов действия (AI (Player 1) vs человек (Player 2))
+        /// Метод тестирования: сброс карт из колоды в отбой
+        /// </summary>
+        /// <param name="count">Количество карт сброса</param>
+        public void DiscardingCardsFromDeck(int count)
+        {
+            for (var i = 0; i < count || DiscardBox.Count() > 0; i++)
+            {
+                DiscardBox.Add(DeckBox.TakeCard());
+            }
+            ViewState();
+        }
+
+        /// <summary>
+        /// Вызов действия 
         /// </summary>
         /// <param name="indexString">Входной индекс (определяет в активной руке номер карты, которой нужно походить; если -1, то вызов альтернативных действий)</param>
-        public void MakeMove(string indexString, bool mock)
+        public void MakeMove(string indexString)
         {
+            // игра окончена, если нечем играть
             if ((HandPlayer1Box.Count == 0 || HandPlayer2Box.Count == 0) && DeckBox.Count() == 0)
             {
                 PrintLogs("Игра окончена");
                 return;
             }
 
+            // определение хода в зависимости от режима
+            bool answer;
+            if (Mode == GameMode.HumanVsHuman)
+            {
+                int index = ConvertIndex(indexString);
+                answer = GameModeHumanVsHuman(index);
+            }
+            else if (Mode == GameMode.HumanVsAi)
+            {
+                answer = GameModeHumanVsAi(indexString);
+            }
+            else if (Mode == GameMode.AiVsAi)
+            {
+                answer = GameModeAiVsAi();
+            }
+            else
+            {
+                throw new Exception("GameMode накрылся");
+            }
+
+            if (answer)
+                ChangeActivePlayer();
+        }
+
+        /// <summary>
+        /// Ходы игроков при режиме GameMode.AiVsAi
+        /// </summary>
+        /// <returns>True при корректной обработке хода</returns>
+        private bool GameModeAiVsAi()
+        {
             bool answer = false;
             if (ActivePlayer == 1)
             {
-                // определение того, что нужно ожидать от ИИ
-                var currentUserAction = UserAction.None;
-                if (TableBox.Count == 0)
-                    currentUserAction = UserAction.FirstMove;
-                else if (TableBox.Count % 2 == 0)
-                    currentUserAction = UserAction.Attack;
-                else
-                    currentUserAction = UserAction.Protection;
+                AiInteractionProcess(Player1, HandPlayer1Box);
+                answer = true;
+            }
+            else if (ActivePlayer == 2)
+            {
+                AiInteractionProcess(Player2, HandPlayer2Box);
+                answer = true;
+            }
+            else
+            {
+                PrintLogs($"Выскочил ActivePlayer = {ActivePlayer}");
+            }
+            return answer;
+        }
 
-                // через количества определим потом какие изменения были
-                var countHandPlayerBoxOld = HandPlayer1Box.Count;
-                var countTableBoxOld = TableBox.Count;
-
-
-                // запрос хода у ИИ
-                PrintLogs($"{Player1} зпрос хода");
-                var solution = Player1.MakeMove(HandPlayer1Box, TableBox, DeckBox.Count());
-
-                // проверка что изменилось:
-                // UserAction.FirstMove не требует доп. проверки
-                // UserAction.Attack требует доп. проверки: подкинули или пасанули
-                // UserAction.Protection требует доп. проверки: забрали или отбились
-                var countHandPlayerBoxNew = HandPlayer1Box.Count;
-                var countTableBoxNew = TableBox.Count;
-                if (currentUserAction == UserAction.FirstMove)
-                {
-                    PrintLogs($"{Player1} провел UserAction.FirstMove");
-                }
-                else if (currentUserAction == UserAction.Attack)
-                {
-                    if (countHandPlayerBoxNew == countHandPlayerBoxOld && countTableBoxNew == countTableBoxOld)
-                    {
-                        // нужно "сделать" пас:
-                        // - скинуть карты со стола
-                        // - закинуть карты в руки игрокам (если есть)
-                        Discard();
-                        PrintLogs($"{Player1} провел UserAction.Attack: Пас");
-                    }
-                    else
-                    {
-                        PrintLogs($"{Player1} провел UserAction.Attack: Подкинуть");
-                    }
-                }
-                else if (currentUserAction == UserAction.Protection)
-                {
-                    if (countTableBoxNew == 0 && countTableBoxOld + countHandPlayerBoxOld == countHandPlayerBoxNew)
-                    {
-                        PrintLogs($"{Player1} провел UserAction.Protection: Забрать карты со стола");
-                    }
-                    else
-                    {
-                        PrintLogs($"{Player1} провел UserAction.Attack: Отбиться");
-                    }
-                }
-                else
-                {
-                    throw new Exception("Такое состояние не должно определяться, что-то пошло не так");
-                }
+        /// <summary>
+        /// Ходы игроков при режиме GameMode.HumanVsAi
+        /// </summary>
+        /// <param name="indexString">Строковое представление индекса карты хода</param>
+        /// <returns>True при корректной обработке хода</returns>
+        private bool GameModeHumanVsAi(string indexString)
+        {
+            bool answer = false;
+            if (ActivePlayer == 1)
+            {
+                AiInteractionProcess(Player1, HandPlayer1Box);
                 answer = true;
             }
             else if (ActivePlayer == 2)
@@ -152,25 +189,98 @@ namespace FoolGame.Server
                 PrintLogs($"Выскочил ActivePlayer = {ActivePlayer}");
             }
 
-            if (answer)
-                ChangeActivePlayer();
+            return answer;
         }
 
-
         /// <summary>
-        /// Вызов действия (человек (Player 1) vs человек (Player 2))
+        /// Процесс взаимодействия сервера с ИИ
         /// </summary>
-        /// <param name="indexString">Входной индекс (определяет в активной руке номер карты, которой нужно походить; если -1, то вызов альтернативных действий)</param>
-        public void MakeMove(string indexString)
+        /// <param name="player">Активный ИИ</param>
+        private void AiInteractionProcess(Lori player, List<PlayingCard> hand)
         {
-            int index = ConvertIndex(indexString);
-
-            if ((HandPlayer1Box.Count == 0 || HandPlayer2Box.Count == 0) && DeckBox.Count() == 0)
+            // определение того, что нужно ожидать от ИИ
+            ActionAI currentUserAction;
+            if (TableBox.Count == 0)
             {
-                PrintLogs("Игра окончена");
-                return;
+                PrintLogs($"{player} запрос хода ActionAI.FirstMove");
+                currentUserAction = ActionAI.FirstMove;
+            }
+            else if (TableBox.Count % 2 == 0)
+            {
+                PrintLogs($"{player} запрос хода ActionAI.Attack");
+                currentUserAction = ActionAI.Attack;
+            }
+            else
+            {
+                PrintLogs($"{player} запрос хода ActionAI.Protection");
+                currentUserAction = ActionAI.Protection;
             }
 
+            // через количества определим потом какие изменения были
+            var countHandPlayerBoxOld = hand.Count;
+            var countTableBoxOld = TableBox.Count;
+
+            // запрос хода у ИИ
+            player.MakeMove(hand, TableBox, DeckBox.Count());
+
+            // проверка что изменилось:
+            // ActionAI.FirstMove не требует доп. проверки
+            // ActionAI.Attack требует доп. проверки: подкинули или пасанули
+            // ActionAI.Protection требует доп. проверки: забрали или отбились
+            var countHandPlayerBoxNew = hand.Count;
+            var countTableBoxNew = TableBox.Count;
+            if (currentUserAction == ActionAI.FirstMove)
+            {
+                PrintLogs($"{player} провел ActionAI.FirstMove");
+            }
+            else if (currentUserAction == ActionAI.Attack)
+            {
+                if (countHandPlayerBoxNew == countHandPlayerBoxOld && countTableBoxNew == countTableBoxOld)
+                {
+                    PrintLogs($"{player} провел ActionAI.Attack: Пас");
+                    // нужно "сделать" пас:
+                    // - скинуть карты со стола
+                    // - закинуть карты в руки игрокам (если есть)
+                    Discard();
+                }
+                else if (countHandPlayerBoxNew == countHandPlayerBoxOld - 1 && countTableBoxNew == countTableBoxOld + 1)
+                {
+                    PrintLogs($"{player} провел ActionAI.Attack: Подкинуть");
+                }
+                else
+                {
+                    throw new Exception("Неизвестная ситуация");
+                }
+            }
+            else if (currentUserAction == ActionAI.Protection)
+            {
+                if (countTableBoxNew == 0 && countTableBoxOld + countHandPlayerBoxOld == countHandPlayerBoxNew)
+                {
+                    PrintLogs($"{player} провел ActionAI.Protection: Забрать карты со стола");
+                    DealCardsToPlayers();
+                }
+                else if (countHandPlayerBoxNew == countHandPlayerBoxOld - 1 && countTableBoxNew == countTableBoxOld + 1)
+                {
+                    PrintLogs($"{player} провел ActionAI.Attack: Отбиться");
+                }
+                else
+                {
+                    throw new Exception("Неизвестная ситуация");
+                }
+            }
+            else
+            {
+                throw new Exception("Такое состояние не должно определяться, что-то пошло не так");
+            }
+        }
+
+        /// <summary>
+        /// Ходы игроков при режиме GameMode.HumanVsHuman
+        /// </summary>
+        /// <param name="index">Индекс карты хода</param>
+        /// <returns>True при корректной обработке хода</returns>
+        private bool GameModeHumanVsHuman(int index)
+        {
             bool answer = false;
             if (ActivePlayer == 1)
             {
@@ -184,11 +294,15 @@ namespace FoolGame.Server
             {
                 PrintLogs($"Выскочил ActivePlayer = {ActivePlayer}");
             }
-
-            if (answer)
-                ChangeActivePlayer();
+            return answer;
         }
 
+
+        /// <summary>
+        /// Конвертирование строкового представления индекса в целый числовой
+        /// </summary>
+        /// <param name="indexString">Строковое представление индекса</param>
+        /// <returns>Целое числовое представление индекса</returns>
         int ConvertIndex(string indexString)
         {
             try
@@ -250,11 +364,7 @@ namespace FoolGame.Server
             hand.AddRange(TableBox);
             TableBox.Clear();
 
-            // дураная проверка т.к. здесь нужно знать просто кому карты докинуть из колоды
-            if (ActivePlayer == 1)
-                DealCards(HandPlayer1Box, HandPlayer2Box);
-            else
-                DealCards(HandPlayer2Box, HandPlayer1Box);
+            DealCardsToPlayers();
             return true;
         }
 
@@ -267,11 +377,19 @@ namespace FoolGame.Server
             DiscardBox.AddRange(TableBox);
             TableBox.Clear();
 
+            DealCardsToPlayers();
+            return true;
+        }
+
+        /// <summary>
+        /// Раздать карты игрокам (авто определение последовательности раздачи)
+        /// </summary>
+        private void DealCardsToPlayers()
+        {
             if (ActivePlayer == 1)
                 DealCards(HandPlayer1Box, HandPlayer2Box);
             else
                 DealCards(HandPlayer2Box, HandPlayer1Box);
-            return true;
         }
 
         /// <summary>
