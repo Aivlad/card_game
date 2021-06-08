@@ -48,6 +48,7 @@
   <ItemGroup>
     <Compile Include="AI\AI.cs" />
     <Compile Include="AI\Lori.cs" />
+    <Compile Include="AI\PocketСalculator.cs" />
     <Compile Include="Deck\Deck.cs" />
     <Compile Include="Deck\PlayingCard.cs" />
     <Compile Include="Server\Sever.cs" />
